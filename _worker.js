@@ -272,7 +272,7 @@ function configHTML(domain, token) {
             <strong>服务域名:</strong> ${domain}<br>
             <strong>TOKEN:</strong> ${token}<br>
         </p>
-        <p class="tips"><strong>注意!</strong> 因URL长度内容所限，脚本更新方式一次最多更新65行内容</p>
+        <p class="tips"><strong>注意!</strong> 因URL长度内容所限，脚本更新方式一次最多更新200行内容</p>
     <div class="flex-row">
     <h2>Windows 脚本:</h2>
     <button class="download-button" onclick="window.open('https://${domain}/config/update.bat?token=${token}&t=' + Date.now(), '_blank')">点击下载</button>
