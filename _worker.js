@@ -22,7 +22,9 @@ export default {
             switch (fileName) {
                 case "config":
                 case mytoken:
-                    return createResponse(configHTML(url.hostname, token), 200, { 'Content-Type': 'text/html; charset=UTF-8' });
+                    // 获取存储的 IP 地址内容，最多 2000 行
+                    const ipList = await getIPList(env.KV);
+                    return createResponse(configHTML(url.hostname, token, ipList), 200, { 'Content-Type': 'text/html; charset=UTF-8' });
                 case "config/update.bat":
                     return createResponse(generateBatScript(url.hostname, token), 200, { "Content-Disposition": 'attachment; filename=update.bat', "Content-Type": "text/plain; charset=utf-8" });
                 case "config/update.sh":
@@ -36,6 +38,21 @@ export default {
         }
     }
 };
+
+/**
+ * 获取最多 2000 行 IP 地址列表
+ * @param {Object} KV - KV 命名空间实例
+ */
+async function getIPList(KV) {
+    const value = await KV.get('ip.txt', { cacheTtl: 60 });
+    if (!value) {
+        return "没有 IP 地址数据";
+    }
+
+    // 获取前 2000 行 IP 地址
+    const ipList = value.split('\n').slice(0, 2000).join('\n');
+    return ipList;
+}
 
 /**
  * 处理文件操作
@@ -126,7 +143,7 @@ function generateBatScript(domain, token) {
         '',
         'set "FILENAME=%~nx1"',
         '',
-        'for /f "delims=" %%i in (\'powershell -command "$content = ((Get-Content -Path \'%cd%/%FILENAME%\' -Encoding UTF8) | Select-Object -First 65) -join [Environment]::NewLine; [convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))"\') do set "BASE64_TEXT=%%i"',
+        'for /f "delims=" %%i in (\'powershell -command "$content = ((Get-Content -Path \'%cd%/%FILENAME%\' -Encoding UTF8) | Select-Object -First 2000) -join [Environment]::NewLine; [convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))"\') do set "BASE64_TEXT=%%i"',
         '',
         'set "URL=https://%DOMAIN%/%FILENAME%?token=%TOKEN%^&b64=%BASE64_TEXT%"',
         '',
@@ -165,9 +182,9 @@ echo "更新数据完成"
  * 生成 HTML 配置页面
  * @param {String} domain - 域名
  * @param {String} token - 认证 token
+ * @param {String} ipList - IP 地址列表
  */
-
-function configHTML(domain, token) {
+function configHTML(domain, token, ipList) {
     return `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -207,106 +224,15 @@ function configHTML(domain, token) {
         padding: 5px 15px 15px 15px; 
         border-radius: 10px; 
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
-            /* Flexbox layout for h2 and button */
-        .flex-row { 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: center; 
-        margin-top:-10px !important;
-        margin-bottom:-10px !important;
-        }
-        .download-button {
-            padding: 5px 10px; /* 调整按钮的内边距，改变大小 */
-            margin:0 !importan;
-            background-color: Indigo !important; /* 设置按钮背景颜色 */
-            color: white; /* 设置按钮文本颜色 */
-            border: none; /* 去掉边框 */
-            border-radius: 5px; /* 设置圆角 */
-            cursor: pointer; /* 设置鼠标悬停时的光标样式 */
-            transition: background-color 0.3s; /* 添加背景颜色的过渡效果 */
-        }
-        
-        .download-button:hover {
-            background-color: #45a049; /* 鼠标悬停时的背景颜色 */
-        }
-        .input-button-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        /* Light theme */
-        body.light { background-color: #f0f0f0; color: #333; }
-        h1.light { color: #444; }
-        pre.light { background-color: #fff; border: 1px solid #ddd; }
-        button.light { background-color: DarkViolet; color: #fff; }
-        input[type="text"].light { border: 1px solid #ddd; }
-        .container.light { background-color: #fff; }
-
-        /* Dark theme */
-        body.dark { background-color: #1e1e1e; color: #c9d1d9; }
-        h1.dark { color: #c9d1d9; }
-        pre.dark { background-color: #2d2d2d; border: 1px solid #444; }
-        button.dark { background-color: DarkViolet; color: #c9d1d9; }
-        input[type="text"].dark { border: 1px solid #444; }
-        .container.dark { background-color: #2d2d2d; }
     </style>
-    <!-- 引入 Highlight.js 的 CSS 文件 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/obsidian.min.css">
-    <!-- 引入 Highlight.js 的 JavaScript 文件 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.body.classList.add(theme);
-            document.querySelectorAll('h1, pre, button, input[type="text"], .container').forEach(el => el.classList.add(theme));
-        });
-    </script>
 </head>
 <body>
-        <h1>TEXT2KV 配置信息</h1>
+    <h1>TEXT2KV 配置信息</h1>
     <div class="container">
-
-        <p>
-            <strong>服务域名:</strong> ${domain}<br>
-            <strong>TOKEN:</strong> ${token}<br>
-        </p>
-        <p class="tips"><strong>注意!</strong> 因URL长度内容所限，脚本更新方式一次最多更新200行内容</p>
-    <div class="flex-row">
-    <h2>Windows 脚本:</h2>
-    <button class="download-button" onclick="window.open('https://${domain}/config/update.bat?token=${token}&t=' + Date.now(), '_blank')">点击下载</button>
+        <h2>IP 地址列表</h2>
+        <pre>${ipList}</pre>  <!-- 渲染 IP 地址列表 -->
     </div>
-        <pre><code>update.bat ip.txt</code></pre>
-        <h2>Linux 脚本:</h2>
-        <pre><code class="language-bash">curl "https://${domain}/config/update.sh?token=${token}&t=$(date +%s%N)" -o update.sh && chmod +x update.sh</code></pre>
-        <h2>在线文档查询:</h2>
-        <div class="input-button-container">
-        <input type="text" id="keyword" placeholder="请输入要查询的文档">
-        <button onclick="viewDocument()">查看文档内容</button>
-        <button onclick="copyDocumentURL()">复制文档地址</button>
-        </div>
-    </div>
-    <script>
-        /**
-         * 查看文档内容
-         */
-        function viewDocument() {
-            const keyword = document.getElementById('keyword').value;
-            window.open('https://${domain}/' + keyword + '?token=${token}&t=' + Date.now(), '_blank');
-        }
-
-        /**
-         * 复制文档地址到剪贴板
-         */
-        function copyDocumentURL() {
-            const keyword = document.getElementById('keyword').value;
-            const url = 'https://${domain}/' + keyword + '?token=${token}&t=' + Date.now();
-            navigator.clipboard.writeText(url).then(() => alert('文档地址已复制到剪贴板'));
-        }
-    </script>
 </body>
 </html>
-    `;
+`;
 }
-  
